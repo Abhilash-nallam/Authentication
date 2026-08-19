@@ -1,14 +1,13 @@
 <?php
 declare(strict_types=1);
-
-require dirname(__DIR__) . '/bootstrap.php';
-use OtpAuth\AbuseLimiter;use OtpAuth\AdminController;use OtpAuth\AdminService;use OtpAuth\ApiController;use OtpAuth\ApiKeyService;use OtpAuth\Config;use OtpAuth\CustomerController;use OtpAuth\CustomerMailer;use OtpAuth\CustomerService;use OtpAuth\Database;use OtpAuth\DomainVerificationService;use OtpAuth\OtpService;use OtpAuth\ProjectService;use OtpAuth\RateLimiter;use OtpAuth\Response;use OtpAuth\SesEventController;
+require dirname(__DIR__).'/bootstrap.php';
+use OtpAuth\AbuseLimiter;use OtpAuth\AdminController;use OtpAuth\AdminService;use OtpAuth\ApiController;use OtpAuth\ApiKeyService;use OtpAuth\Config;use OtpAuth\CustomerController;use OtpAuth\CustomerMailer;use OtpAuth\CustomerService;use OtpAuth\Database;use OtpAuth\DomainVerificationService;use OtpAuth\OtpService;use OtpAuth\ProjectService;use OtpAuth\RateLimiter;use OtpAuth\Response;use OtpAuth\SesEventController;use OtpAuth\SettingsService;
 $path=parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH);
 try{
  Config::assertProductionSafe();$db=Database::connection();
  if(str_starts_with($path,'/api/v1/otp/'))(new ApiController(new ApiKeyService($db),new RateLimiter($db),new AbuseLimiter($db),new OtpService($db)))->handle(trim(substr($path,strlen('/api/v1/otp/')),'/'));
  if(str_starts_with($path,'/api/v1/customer/'))(new CustomerController(new CustomerService($db),new CustomerMailer(),new ProjectService($db),new DomainVerificationService($db),new ApiKeyService($db)))->handle(trim(substr($path,strlen('/api/v1/customer/')),'/'));
- if(str_starts_with($path,'/api/v1/admin/'))(new AdminController(new AdminService($db)))->handle(trim(substr($path,strlen('/api/v1/admin/')),'/'));
+ if(str_starts_with($path,'/api/v1/admin/'))(new AdminController(new AdminService($db),new SettingsService($db)))->handle(trim(substr($path,strlen('/api/v1/admin/')),'/'));
  if($path==='/api/v1/ses/events')(new SesEventController($db))->handle();
  if($path==='/health')Response::success(['service'=>'otp-auth','time'=>gmdate(DATE_ATOM)]);
  if($path==='/verify-email'){$ok=(new CustomerService($db))->verifyEmail((string)($_GET['token']??''));header('Content-Type: text/html; charset=utf-8');echo $ok?'<h1>Email verified</h1><p>Your OTP Auth account is active. You can return to the dashboard.</p>':'<h1>Verification failed</h1><p>The verification link is invalid or expired.</p>';exit;}
