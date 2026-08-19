@@ -17,8 +17,13 @@ final class CustomerController
                 Response::success(['message'=>'Account created. Check your email to verify it.'],201);
             }
             if ($action==='verify-email') { if (!$this->customers->verifyEmail((string)($data['token']??''))) Response::error('invalid_verification_token','Verification token is invalid or expired.',400); Response::success(['message'=>'Email verified.']); }
-            if ($action==='login') Response::success(['session_token'=>$this->customers->login((string)($data['email']??''),(string)($data['password']??''))]);
-            if ($action==='logout') { $this->customers->logout($this->sessionToken()); Response::success(['message'=>'Logged out.']); }
+            if ($action==='login') {
+                $token=$this->customers->login((string)($data['email']??''),(string)($data['password']??''));
+                $secure=Config::env('APP_ENV','development')==='production';
+                setcookie('otp_auth_session',$token,['expires'=>time()+86400,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
+                Response::success(['message'=>'Login successful.']);
+            }
+            if ($action==='logout') { $token=$this->sessionToken(); $this->customers->logout($token); setcookie('otp_auth_session','',['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax']); Response::success(['message'=>'Logged out.']); }
 
             $customer=$this->customers->customerFromSession($this->sessionToken());
             if (!$customer) Response::error('authentication_required','Customer session required.',401);
