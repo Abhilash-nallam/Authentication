@@ -10,7 +10,7 @@ Customer Dashboard A manages the customer's account, projects/apps, domain owner
 {"email":"owner@example.com","password":"at-least-10-characters"}
 ```
 
-The account remains pending until the verification email is completed.
+The account remains pending until the verification email is completed. Registration uses a generic success response so the public endpoint does not reveal whether an email is already registered.
 
 `POST /api/v1/customer/verify-email`
 
@@ -20,7 +20,7 @@ The account remains pending until the verification email is completed.
 
 `POST /api/v1/customer/login`
 
-Returns an HTTP-only session cookie and a CSRF token for browser state changes.
+Returns an HTTP-only session cookie and a CSRF token for browser state changes. Failed login responses are intentionally generic.
 
 `POST /api/v1/customer/logout`
 
@@ -76,7 +76,7 @@ The PHP application only reserves the name. Actual DNS/hosting routing remains a
 {"project_id":1,"name":"Production server","environment":"production"}
 ```
 
-The plaintext key is returned only once.
+The plaintext key is returned only once. Production deployments reject `test` environment keys.
 
 `POST /api/v1/customer/keys` lists metadata only.
 
@@ -95,6 +95,8 @@ Rotation revokes the old key and creates the new key in one transaction.
 ```
 
 Revocation immediately prevents API authentication.
+
+API keys can also be restricted by IP/CIDR, browser Origin, endpoint action and OTP purpose when those controls are configured.
 
 ## Browser security
 
