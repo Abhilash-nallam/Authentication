@@ -1,0 +1,30 @@
+name: PHP checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax-and-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2','8.3','8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo_mysql, sodium
+          coverage: none
+      - run: composer validate --no-check-publish
+      - run: composer install --no-interaction --prefer-dist
+      - name: PHP syntax
+        run: find src public bin tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Smoke test
+        env:
+          APP_KEY: ci-test-secret-that-is-at-least-32-characters-long
+          APP_ENV: test
+          APP_DEBUG: false
+        run: php tests/smoke.php
