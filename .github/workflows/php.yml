@@ -28,3 +28,9 @@ jobs:
           APP_ENV: test
           APP_DEBUG: false
         run: php tests/smoke.php
+      - name: Security regression test
+        env:
+          APP_KEY: ci-test-secret-that-is-at-least-32-characters-long
+          APP_ENV: test
+          APP_DEBUG: false
+        run: php tests/security-regression.php
