@@ -108,7 +108,9 @@
           </div>
           <div class="grid-2">
             <div class="panel">
-              <div class="panel-head"><div><h2>Test verification</h2><p>This uses <code>/send-otp</code> and <code>/verify-otp</code>.</p></div></div>
+              <div class="panel-head"><div><h2>Test verification</h2><p>This uses <code>/api/v1/otp/request</code> and <code>/api/v1/otp/verify</code>.</p></div></div>
+              <label>API key</label>
+              <input id="otpApiKey" type="password" placeholder="Paste a generated API key" autocomplete="off">
               <label>Email address</label>
               <input id="otpEmail" type="email" placeholder="you@example.com" autocomplete="email">
               <button class="primary full" id="sendOtpBtn">Send OTP</button>
@@ -120,12 +122,12 @@
               <div id="otpMessage" class="notice hidden"></div>
             </div>
             <div class="panel">
-              <div class="panel-head"><div><h2>OTP policy</h2><p>Current values from the Node backend.</p></div></div>
+              <div class="panel-head"><div><h2>OTP policy</h2><p>Current values from the PHP backend configuration.</p></div></div>
               <div class="policy-row"><span>OTP length</span><b>6 digits</b></div>
               <div class="policy-row"><span>Expiration</span><b>5 minutes</b></div>
               <div class="policy-row"><span>Resend cooldown</span><b>60 seconds</b></div>
               <div class="policy-row"><span>Maximum attempts</span><b>5</b></div>
-              <div class="callout">For this demo, OTPs are kept in server memory. Restarting the Node process clears them.</div>
+              <div class="callout">OTPs are stored as HMAC hashes in the configured database and expire automatically.</div>
             </div>
           </div>
         </div>
@@ -134,7 +136,7 @@
         <div class="page" id="page-email">
           <div class="page-head"><div><div class="eyebrow">DELIVERY</div><h1>Email</h1><p>Demo email delivery controls and provider information.</p></div></div>
           <div class="stats-grid">
-            <div class="stat-card"><span>Provider</span><strong>SMTP</strong><small>Nodemailer</small></div>
+            <div class="stat-card"><span>Provider</span><strong>Amazon SES</strong><small>AWS SDK for PHP</small></div>
             <div class="stat-card"><span>Sender</span><strong id="senderDisplay">Configured</strong><small>Read from server environment</small></div>
             <div class="stat-card"><span>Templates</span><strong>1</strong><small>OTP verification</small></div>
             <div class="stat-card"><span>Mode</span><strong>Local</strong><small>Production UI demo</small></div>
@@ -148,7 +150,7 @@
               <div class="check-row">✓ Success/error responses displayed</div>
               <div class="check-row">✓ Resend cooldown enforced by backend</div>
               <div class="check-row">○ Bounce/complaint analytics not implemented</div>
-              <div class="check-row">○ SES metrics not connected to this Node demo</div>
+              <div class="check-row">○ SES metrics not connected to this dashboard yet</div>
             </div>
           </div>
         </div>
@@ -157,14 +159,15 @@
         <div class="page" id="page-api">
           <div class="page-head"><div><div class="eyebrow">DEVELOPER</div><h1>API & Keys</h1><p>Demo API documentation and local health testing.</p></div></div>
           <div class="panel">
-            <div class="panel-head"><div><h2>API endpoints</h2><p>These are the endpoints implemented in the current server.js.</p></div></div>
+            <div class="panel-head"><div><h2>API endpoints</h2><p>These are the endpoints implemented by the PHP API router.</p></div></div>
             <div class="endpoint"><span class="method get">GET</span><code>/health</code><span>Server health check</span><button class="small-btn" id="apiHealthBtn">Test</button></div>
-            <div class="endpoint"><span class="method post">POST</span><code>/send-otp</code><span>Send verification OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
-            <div class="endpoint"><span class="method post">POST</span><code>/verify-otp</code><span>Verify submitted OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/otp/request</code><span>Send verification OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/otp/verify</code><span>Verify submitted OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/api/v1/otp/resend</code><span>Resend active OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
           </div>
           <div class="grid-2">
-            <div class="panel"><div class="panel-head"><div><h2>Demo API key</h2><p>UI-only placeholder. No real key is created.</p></div></div><div class="key-box"><code>oa_demo_••••••••••••••••</code><button class="small-btn" id="copyDemoKey">Copy</button></div></div>
-            <div class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Items to implement before public release.</p></div></div><div class="check-row">○ Persistent API key storage</div><div class="check-row">○ Per-key rate limits</div><div class="check-row">○ Authentication & RBAC</div><div class="check-row">○ Audit logging</div></div>
+            <div class="panel"><div class="panel-head"><div><h2>Demo API key</h2><p>Generate one with php bin/create_api_key.php and paste it into the OTP test form.</p></div></div><div class="key-box"><code>oa_demo_••••••••••••••••</code><button class="small-btn" id="copyDemoKey">Copy</button></div></div>
+            <div class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Items to implement before public release.</p></div></div><div class="check-row">✓ Persistent API key storage</div><div class="check-row">✓ Per-key rate limits</div><div class="check-row">○ Authentication & RBAC</div><div class="check-row">✓ Audit logging</div></div>
           </div>
         </div>
 
