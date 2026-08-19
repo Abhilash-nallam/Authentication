@@ -63,3 +63,5 @@ CREATE TABLE IF NOT EXISTS email_events (
 
 ALTER TABLE api_keys ADD INDEX idx_api_keys_project (project_id);
 ALTER TABLE otp_challenges ADD INDEX idx_otp_project_email (project_id, email, purpose, created_at);
+ALTER TABLE api_keys ADD CONSTRAINT fk_api_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+ALTER TABLE otp_challenges ADD CONSTRAINT fk_otp_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
