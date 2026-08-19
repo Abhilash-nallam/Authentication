@@ -3,42 +3,44 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/bootstrap.php';
 
+use OtpAuth\ApiController;
+use OtpAuth\ApiKeyService;
 use OtpAuth\Config;
 use OtpAuth\Database;
-use OtpAuth\ApiKeyService;
-use OtpAuth\RateLimiter;
 use OtpAuth\OtpService;
-use OtpAuth\ApiController;
+use OtpAuth\RateLimiter;
 use OtpAuth\Response;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 
-if (str_starts_with($path, '/api/v1/otp/')) {
-    $action = trim(substr($path, strlen('/api/v1/otp/')), '/');
-    try {
+try {
+    Config::assertProductionSafe();
+
+    if (str_starts_with($path, '/api/v1/otp/')) {
+        $action = trim(substr($path, strlen('/api/v1/otp/')), '/');
         $db = Database::connection();
-        $controller = new ApiController(
+        (new ApiController(
             new ApiKeyService($db),
             new RateLimiter($db),
             new OtpService($db)
-        );
-        $controller->handle($action);
-    } catch (Throwable $e) {
-        error_log($e->getMessage());
-        Response::json([
-            'success' => false,
-            'error' => Config::bool('APP_DEBUG') ? $e->getMessage() : 'Internal server error.'
-        ], 500);
+        ))->handle($action);
     }
-}
 
-if ($path === '/health') {
-    Response::json(['success' => true, 'service' => 'otp-auth', 'time' => gmdate(DATE_ATOM)]);
-}
+    if ($path === '/health') {
+        Response::success(['service' => 'otp-auth', 'time' => gmdate(DATE_ATOM)]);
+    }
 
-if ($path === '/' || $path === '/index.php') {
-    require __DIR__ . '/dashboard.php';
-    exit;
-}
+    if ($path === '/' || $path === '/index.php') {
+        require __DIR__ . '/dashboard.php';
+        exit;
+    }
 
-Response::json(['success' => false, 'error' => 'Not found.'], 404);
+    Response::error('not_found', 'Not found.', 404);
+} catch (Throwable $e) {
+    error_log($e->getMessage());
+    Response::error(
+        'internal_server_error',
+        Config::bool('APP_DEBUG') ? $e->getMessage() : 'Internal server error.',
+        500
+    );
+}
