@@ -18,9 +18,7 @@ A verification email is sent through SES. The account remains pending until veri
 {"token":"verification-token"}
 ```
 
-`POST /api/v1/customer/login`
-
-Returns a secure session cookie and CSRF token.
+`POST /api/v1/customer/login` returns a secure session cookie and CSRF token.
 
 `POST /api/v1/customer/logout`
 
@@ -75,6 +73,14 @@ The application reserves `slotcare.otp-auth.com` after validating the slug and o
 The plaintext API key is returned only at creation time.
 
 `POST /api/v1/customer/keys` lists metadata only.
+
+`POST /api/v1/customer/key-rotate`
+
+```json
+{"project_id":1,"old_key_id":123,"name":"Production rotated key"}
+```
+
+Rotation revokes the old key and creates the new key in one database transaction. The new plaintext key is returned only once.
 
 `POST /api/v1/customer/key-revoke`
 
