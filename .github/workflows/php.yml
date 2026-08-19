@@ -18,16 +18,20 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring, pdo_mysql, sodium, xml, curl
+          extensions: mbstring, pdo_mysql, sodium, simplexml, curl
           coverage: none
         env:
           fail-fast: true
       - name: Show PHP environment
         run: php -v && php -m
+      - name: Verify required PHP extensions
+        run: php -r '$required=["mbstring","pdo_mysql","sodium","SimpleXML","curl"]; foreach($required as $ext){if(!extension_loaded($ext)){fwrite(STDERR,"Missing PHP extension: {$ext}\n"); exit(1);}} echo "Required PHP extensions are available.\n";'
       - name: Validate Composer configuration
         run: composer validate --no-check-publish
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
+      - name: Verify Composer platform requirements
+        run: composer check-platform-reqs --no-dev
       - name: PHP syntax
         run: find src public bin tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Smoke test
