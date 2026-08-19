@@ -21,12 +21,11 @@ final class AdminController
             if (!$admin) Response::error('admin_authentication_required','Admin session required.',401);
             if ($action==='logout') {
                 $this->admins->logout($this->sessionToken());
-                setcookie('otp_auth_admin','',['expires'=>time()-3600,'path'=>'','httponly'=>true,'samesite'=>'Strict']);
+                setcookie('otp_auth_admin','',['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Strict']);
                 Response::success(['message'=>'Logged out.']);
             }
             $permission=$this->permissionFor($action);
             if ($permission && !$this->admins->can((int)$admin['id'],$permission)) Response::error('admin_permission_denied','Permission denied.',403);
-
             if ($action==='me') Response::success(['admin'=>['id'=>(int)$admin['id'],'email'=>$admin['email'],'role'=>$admin['role_name']]]);
             if ($action==='overview') Response::success(['overview'=>$this->admins->overview()]);
             if ($action==='customers') Response::success(['customers'=>$this->admins->customers()]);
