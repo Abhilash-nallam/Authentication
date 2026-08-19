@@ -16,10 +16,10 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring, pdo_mysql, sodium
+          extensions: mbstring, pdo_mysql, sodium, simplexml
           coverage: none
       - run: composer validate --no-check-publish
-      - run: composer install --no-interaction --prefer-dist
+      - run: composer install --no-interaction --prefer-dist --no-progress
       - name: PHP syntax
         run: find src public bin tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Smoke test
