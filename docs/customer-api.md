@@ -1,6 +1,6 @@
 # Customer Platform API
 
-All endpoints use `POST /api/v1/customer/<action>` with JSON. Customer sessions use an HTTP-only `otp_auth_session` cookie; server integrations may instead send `Authorization: Bearer <session_token>`.
+Customer Dashboard A manages the customer's account, projects/apps, domain ownership, subdomain reservation and API credentials.
 
 ## Account
 
@@ -10,7 +10,7 @@ All endpoints use `POST /api/v1/customer/<action>` with JSON. Customer sessions 
 {"email":"owner@example.com","password":"at-least-10-characters"}
 ```
 
-A verification email is sent through SES. The account remains pending until verified.
+The account remains pending until the verification email is completed.
 
 `POST /api/v1/customer/verify-email`
 
@@ -18,19 +18,23 @@ A verification email is sent through SES. The account remains pending until veri
 {"token":"verification-token"}
 ```
 
-`POST /api/v1/customer/login` returns a secure session cookie and CSRF token.
+`POST /api/v1/customer/login`
+
+Returns an HTTP-only session cookie and a CSRF token for browser state changes.
 
 `POST /api/v1/customer/logout`
 
-## Projects
+## Projects / Apps
 
 `POST /api/v1/customer/projects` — list the authenticated customer's projects.
 
 `POST /api/v1/customer/project-create`
 
 ```json
-{"name":"SlotCare"}
+{"name":"SlotCare Production"}
 ```
+
+A project is the current canonical backend representation of a customer app.
 
 ## Domain verification
 
@@ -40,7 +44,7 @@ A verification email is sent through SES. The account remains pending until veri
 {"project_id":1,"domain":"slotcare.com"}
 ```
 
-The response provides a TXT record such as `otp-auth-verification=<unique-token>`. The customer adds it through their DNS provider.
+The response provides a unique TXT value such as `otp-auth-verification=<unique-token>`.
 
 `POST /api/v1/customer/domain-verify`
 
@@ -48,7 +52,7 @@ The response provides a TXT record such as `otp-auth-verification=<unique-token>
 {"project_id":1}
 ```
 
-The backend performs the DNS TXT lookup; browser-supplied verification results are never trusted.
+The backend performs the DNS TXT lookup. Browser-supplied verification results are never trusted.
 
 ## OTP-Auth subdomain
 
@@ -60,27 +64,29 @@ After domain verification:
 {"project_id":1,"subdomain":"slotcare"}
 ```
 
-The application reserves `slotcare.otp-auth.com` after validating the slug and ownership. Actual DNS/hosting provisioning remains an infrastructure deployment step because the PHP application must remain independent of Cloudflare or another specific DNS provider.
+The application reserves `slotcare.<PLATFORM_DOMAIN>`. During development `PLATFORM_DOMAIN` can be the current public hosting domain. After `otp-auth.com` is purchased and deployed, set `PLATFORM_DOMAIN=otp-auth.com` and the same project becomes `slotcare.otp-auth.com`.
+
+The PHP application only reserves the name. Actual DNS/hosting routing remains an infrastructure deployment responsibility.
 
 ## API keys
 
 `POST /api/v1/customer/key-create`
 
 ```json
-{"project_id":1,"name":"Production server"}
+{"project_id":1,"name":"Production server","environment":"production"}
 ```
 
-The plaintext API key is returned only at creation time.
+The plaintext key is returned only once.
 
 `POST /api/v1/customer/keys` lists metadata only.
 
 `POST /api/v1/customer/key-rotate`
 
 ```json
-{"project_id":1,"old_key_id":123,"name":"Production rotated key"}
+{"project_id":1,"old_key_id":123,"name":"Production rotated key","environment":"production"}
 ```
 
-Rotation revokes the old key and creates the new key in one database transaction. The new plaintext key is returned only once.
+Rotation revokes the old key and creates the new key in one transaction.
 
 `POST /api/v1/customer/key-revoke`
 
@@ -92,4 +98,4 @@ Revocation immediately prevents API authentication.
 
 ## Browser security
 
-When a browser session cookie is used, state-changing customer requests must include `X-CSRF-Token` containing the token returned at login. Server-to-server bearer sessions do not require the cookie CSRF mechanism.
+When a browser session cookie is used, state-changing customer requests must include `X-CSRF-Token` containing the token returned at login. Server-to-server bearer sessions do not use the cookie CSRF mechanism.
