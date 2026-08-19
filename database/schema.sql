@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS domain_verifications (
   project_id BIGINT UNSIGNED NOT NULL,
   domain VARCHAR(253) NOT NULL,
   token_hash CHAR(64) NOT NULL,
+  token_ciphertext TEXT NOT NULL,
   verified_at DATETIME NULL,
   expires_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -49,8 +50,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   last_used_at DATETIME NULL,
   revoked_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_api_keys_prefix (key_prefix),
-  INDEX idx_api_keys_project (project_id),
+  INDEX idx_api_keys_prefix (key_prefix), INDEX idx_api_keys_project (project_id),
   CONSTRAINT fk_api_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -67,9 +67,7 @@ CREATE TABLE IF NOT EXISTS otp_challenges (
   max_attempts INT UNSIGNED NOT NULL DEFAULT 5,
   consumed_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_otp_lookup (api_key_id, email, purpose, created_at),
-  INDEX idx_otp_project_email (project_id, email, purpose, created_at),
-  INDEX idx_otp_expiry (expires_at),
+  INDEX idx_otp_lookup (api_key_id, email, purpose, created_at), INDEX idx_otp_project_email (project_id, email, purpose, created_at), INDEX idx_otp_expiry (expires_at),
   CONSTRAINT fk_otp_api_key FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE,
   CONSTRAINT fk_otp_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -93,8 +91,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   ip_hash CHAR(64) NULL,
   metadata_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_audit_created (created_at),
-  INDEX idx_audit_event (event_type),
+  INDEX idx_audit_created (created_at), INDEX idx_audit_event (event_type),
   CONSTRAINT fk_audit_api_key FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -107,16 +104,8 @@ CREATE TABLE IF NOT EXISTS email_events (
   provider_message_id VARCHAR(255) NULL,
   payload_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_email_events_request (request_id),
-  INDEX idx_email_events_created (created_at),
+  INDEX idx_email_events_request (request_id), INDEX idx_email_events_created (created_at),
   CONSTRAINT fk_email_event_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS dashboard_users (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  email VARCHAR(320) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS customer_sessions (
@@ -127,4 +116,11 @@ CREATE TABLE IF NOT EXISTS customer_sessions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_session_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
   INDEX idx_sessions_expiry (expires_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS dashboard_users (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(320) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
