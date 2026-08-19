@@ -10,7 +10,7 @@ final class CustomerService
     public function __construct(private PDO $db) {}
     public function register(string $email,string $password): array
     {
-        $setting=$this->db->prepare("SELECT setting_value FROM global_settings WHERE setting_key='signup_open' LIMIT 1");$setting->execute();if($setting->fetchColumn()!==false&&!filter_var($setting->fetchColumn(),FILTER_VALIDATE_BOOLEAN))throw new \DomainException('Customer signup is currently closed.');
+        $setting=$this->db->prepare("SELECT setting_value FROM global_settings WHERE setting_key='signup_open' LIMIT 1");$setting->execute();$signup=$setting->fetchColumn();if($signup!==false&&!filter_var($signup,FILTER_VALIDATE_BOOLEAN))throw new \DomainException('Customer signup is currently closed.');
         $email=strtolower(trim($email));if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>320)throw new \InvalidArgumentException('Invalid email address.');if(strlen($password)<10||strlen($password)>200)throw new \InvalidArgumentException('Password must be 10-200 characters.');
         $stmt=$this->db->prepare('SELECT id FROM customers WHERE email=? LIMIT 1');$stmt->execute([$email]);if($stmt->fetch())throw new \DomainException('Account already exists.');
         $token=bin2hex(random_bytes(32));$stmt=$this->db->prepare("INSERT INTO customers(email,password_hash,email_verification_hash,email_verification_expires_at,status) VALUES(?,?,?,?, 'pending')");$stmt->execute([$email,password_hash($password,PASSWORD_DEFAULT),hash('sha256',$token),gmdate('Y-m-d H:i:s',time()+86400)]);return ['id'=>(int)$this->db->lastInsertId(),'email'=>$email,'verification_token'=>$token];
