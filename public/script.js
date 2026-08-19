@@ -98,7 +98,7 @@ async function checkHealth() {
   try {
     const r = await fetch("/health", {cache:"no-store"});
     const data = await r.json();
-    const ok = r.ok && data.ok;
+    const ok = r.ok && data.success;
     $("healthStatus").textContent = ok ? "Online" : "Error";
     $("statApi").textContent = ok ? "Online" : "Error";
     $("statApi").className = ok ? "online" : "offline";
@@ -111,7 +111,18 @@ async function checkHealth() {
   }
 }
 
-async function sendOtp() {
+function authHeaders() {
+  const apiKey = $("otpApiKey").value.trim();
+  if (apiKey) localStorage.setItem("otpAuthApiKey", apiKey);
+  return {"Content-Type":"application/json", "Authorization":`Bearer ${apiKey}`};
+}
+
+async function sendOtp(action="request") {
+  const apiKey = $("otpApiKey").value.trim();
+  if (!apiKey) {
+    showOtpMessage("Paste an API key before sending an OTP.", "error");
+    return;
+  }
   const email = $("otpEmail").value.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showOtpMessage("Enter a valid email address.", "error");
@@ -121,17 +132,17 @@ async function sendOtp() {
   btn.disabled = true;
   btn.textContent = "Sending…";
   try {
-    const r = await fetch("/send-otp", {
+    const r = await fetch(`/api/v1/otp/${action}`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({email})
+      headers:authHeaders(),
+      body:JSON.stringify({email, purpose:"registration"})
     });
     const data = await r.json();
     requests++;
     localStorage.setItem("otpAuthRequests", requests);
     if (!r.ok || !data.success) {
-      showOtpMessage(data.message || "Unable to send OTP.", "error");
-      addActivity("ERROR", `OTP send failed for ${email}: ${data.message || "unknown error"}`);
+      showOtpMessage(data.error || data.message || "Unable to send OTP.", "error");
+      addActivity("ERROR", `OTP send failed for ${email}: ${data.error || data.message || "unknown error"}`);
       return;
     }
     showOtpMessage(data.message || "OTP sent. Check your email.", "success");
@@ -139,7 +150,7 @@ async function sendOtp() {
     $("otpCode").focus();
     updateStats();
   } catch {
-    showOtpMessage("Cannot connect to the Node server.", "error");
+    showOtpMessage("Cannot connect to the PHP API server.", "error");
     addActivity("ERROR", "OTP send request could not reach the server.");
   } finally {
     btn.disabled = false;
@@ -149,6 +160,8 @@ async function sendOtp() {
 }
 
 async function verifyOtp() {
+  const apiKey = $("otpApiKey").value.trim();
+  if (!apiKey) return showOtpMessage("Paste an API key before verifying an OTP.", "error");
   const email = $("otpEmail").value.trim().toLowerCase();
   const otp = $("otpCode").value.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showOtpMessage("Enter a valid email address.", "error");
@@ -157,14 +170,14 @@ async function verifyOtp() {
   btn.disabled = true;
   btn.textContent = "Verifying…";
   try {
-    const r = await fetch("/verify-otp", {
+    const r = await fetch("/api/v1/otp/verify", {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({email, otp})
+      headers:authHeaders(),
+      body:JSON.stringify({email, purpose:"registration", otp})
     });
     const data = await r.json();
     if (!r.ok || !data.success) {
-      showOtpMessage(data.message || "Invalid OTP.", "error");
+      showOtpMessage(data.error || data.message || "Invalid OTP.", "error");
       addActivity("ERROR", `OTP verification failed for ${email}.`);
       return;
     }
@@ -174,7 +187,7 @@ async function verifyOtp() {
     addActivity("VERIFY", `Email verified successfully: ${email}.`);
     updateStats();
   } catch {
-    showOtpMessage("Cannot connect to the Node server.", "error");
+    showOtpMessage("Cannot connect to the PHP API server.", "error");
   } finally {
     btn.disabled = false;
     btn.textContent = "Verify OTP";
@@ -212,9 +225,9 @@ function applyTheme(theme) {
   localStorage.setItem("otpAuthTheme", theme);
 }
 
-$("sendOtpBtn").addEventListener("click", sendOtp);
+$("sendOtpBtn").addEventListener("click", () => sendOtp());
 $("verifyOtpBtn").addEventListener("click", verifyOtp);
-$("resendOtpBtn").addEventListener("click", sendOtp);
+$("resendOtpBtn").addEventListener("click", () => sendOtp("resend"));
 $("healthCheckBtn").addEventListener("click", checkHealth);
 $("apiHealthBtn").addEventListener("click", checkHealth);
 $("refreshBtn").addEventListener("click", () => { checkHealth(); toast("Dashboard refreshed."); });
@@ -226,6 +239,7 @@ $("mobileMenu").addEventListener("click", () => $("sidebar").classList.toggle("o
 $("themeSelect").addEventListener("change", e => applyTheme(e.target.value));
 
 $("otpCode").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g,"").slice(0,6));
+$("otpApiKey").value = localStorage.getItem("otpAuthApiKey") || "";
 
 $("copyDemoKey").addEventListener("click", async () => {
   try {
