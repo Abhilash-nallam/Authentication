@@ -9,17 +9,25 @@ jobs:
   syntax-and-smoke:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php: ['8.2','8.3','8.4']
     steps:
       - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring, pdo_mysql, sodium, simplexml
+          extensions: mbstring, pdo_mysql, sodium, xml, curl
           coverage: none
-      - run: composer validate --no-check-publish
-      - run: composer install --no-interaction --prefer-dist --no-progress
+        env:
+          fail-fast: true
+      - name: Show PHP environment
+        run: php -v && php -m
+      - name: Validate Composer configuration
+        run: composer validate --no-check-publish
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
       - name: PHP syntax
         run: find src public bin tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Smoke test
