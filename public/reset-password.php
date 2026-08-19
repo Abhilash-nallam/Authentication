@@ -1,0 +1,4 @@
+<?php
+declare(strict_types=1);
+$token=(string)($_GET['token']??'');
+?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reset password — OTP Auth</title><link rel="stylesheet" href="/assets/app.css"></head><body><main class="container"><section class="card"><h1>Reset password</h1><form id="reset"><input name="password" type="password" minlength="10" placeholder="New password" required><button>Reset password</button></form><pre id="status"></pre></section></main><script>const token=<?=json_encode($token)?>;document.getElementById('reset').onsubmit=async e=>{e.preventDefault();const r=await fetch('/api/v1/customer/password-reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,password:new FormData(e.target).get('password')})});const j=await r.json();document.getElementById('status').textContent=JSON.stringify(j,null,2)};</script></body></html>
