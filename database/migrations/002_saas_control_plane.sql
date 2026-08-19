@@ -1,6 +1,21 @@
 -- OTP Auth SaaS control-plane upgrade.
 -- Apply once after 001_customer_platform.sql to an existing Phase 1/Customer Platform database.
 
+ALTER TABLE customers
+  ADD COLUMN failed_login_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  ADD COLUMN locked_until DATETIME NULL;
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+  INDEX idx_password_resets_customer (customer_id, expires_at)
+) ENGINE=InnoDB;
+
 ALTER TABLE api_keys
   ADD COLUMN customer_id BIGINT UNSIGNED NULL AFTER id,
   ADD COLUMN environment ENUM('test','production') NOT NULL DEFAULT 'test',
@@ -35,12 +50,10 @@ CREATE TABLE IF NOT EXISTS admin_roles (
   name VARCHAR(80) NOT NULL UNIQUE,
   description VARCHAR(255) NULL
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS admin_permissions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS admin_role_permissions (
   role_id BIGINT UNSIGNED NOT NULL,
   permission_id BIGINT UNSIGNED NOT NULL,
@@ -48,7 +61,6 @@ CREATE TABLE IF NOT EXISTS admin_role_permissions (
   FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE,
   FOREIGN KEY (permission_id) REFERENCES admin_permissions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS admin_users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(320) NOT NULL UNIQUE,
@@ -62,7 +74,6 @@ CREATE TABLE IF NOT EXISTS admin_users (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (role_id) REFERENCES admin_roles(id)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS admin_sessions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT UNSIGNED NOT NULL,
@@ -72,7 +83,6 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
   FOREIGN KEY (admin_id) REFERENCES admin_users(id) ON DELETE CASCADE,
   INDEX idx_admin_sessions_expiry (expires_at)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS otp_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   customer_id BIGINT UNSIGNED NULL,
@@ -88,7 +98,6 @@ CREATE TABLE IF NOT EXISTS otp_events (
   INDEX idx_otp_events_customer (customer_id, created_at),
   INDEX idx_otp_events_project (project_id, created_at)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS customer_settings (
   customer_id BIGINT UNSIGNED PRIMARY KEY,
   otp_length TINYINT UNSIGNED NULL,
@@ -101,7 +110,6 @@ CREATE TABLE IF NOT EXISTS customer_settings (
   webhook_secret_hash CHAR(64) NULL,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS app_settings (
   project_id BIGINT UNSIGNED PRIMARY KEY,
   environment ENUM('test','production') NOT NULL DEFAULT 'test',
@@ -109,7 +117,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   callback_url VARCHAR(2048) NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS global_settings (
   setting_key VARCHAR(120) PRIMARY KEY,
   setting_value TEXT NULL,
@@ -117,7 +124,6 @@ CREATE TABLE IF NOT EXISTS global_settings (
   updated_by BIGINT UNSIGNED NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS usage_daily (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   customer_id BIGINT UNSIGNED NULL,
@@ -130,7 +136,6 @@ CREATE TABLE IF NOT EXISTS usage_daily (
   resent_count INT UNSIGNED NOT NULL DEFAULT 0,
   UNIQUE KEY uq_usage_daily (customer_id, project_id, usage_date)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS webhooks (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   customer_id BIGINT UNSIGNED NOT NULL,
@@ -142,7 +147,6 @@ CREATE TABLE IF NOT EXISTS webhooks (
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   webhook_id BIGINT UNSIGNED NOT NULL,
@@ -155,7 +159,6 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS blocked_entities (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   entity_type ENUM('customer','api_key','email_hash','ip_hash','email_domain') NOT NULL,
@@ -166,7 +169,6 @@ CREATE TABLE IF NOT EXISTS blocked_entities (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_blocked_entity (entity_type, entity_value)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS ses_events (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   event_type VARCHAR(80) NOT NULL,
@@ -174,10 +176,8 @@ CREATE TABLE IF NOT EXISTS ses_events (
   recipient_hash CHAR(64) NULL,
   payload_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_ses_events_created (created_at),
-  INDEX idx_ses_events_message (provider_message_id)
+  INDEX idx_ses_events_created (created_at), INDEX idx_ses_events_message (provider_message_id)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS billing_plans (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(80) NOT NULL UNIQUE,
@@ -190,7 +190,6 @@ CREATE TABLE IF NOT EXISTS billing_plans (
   webhooks_allowed TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS customer_plan_subscriptions (
   customer_id BIGINT UNSIGNED PRIMARY KEY,
   plan_id BIGINT UNSIGNED NOT NULL,
@@ -199,7 +198,6 @@ CREATE TABLE IF NOT EXISTS customer_plan_subscriptions (
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
   FOREIGN KEY (plan_id) REFERENCES billing_plans(id)
 ) ENGINE=InnoDB;
-
 CREATE TABLE IF NOT EXISTS abuse_limits (
   bucket_key CHAR(64) PRIMARY KEY,
   window_started_at DATETIME NOT NULL,
@@ -208,20 +206,9 @@ CREATE TABLE IF NOT EXISTS abuse_limits (
 ) ENGINE=InnoDB;
 
 INSERT IGNORE INTO admin_roles (id,name,description) VALUES
-(1,'super_admin','Full platform control'),
-(2,'support_admin','Customer and log support access'),
-(3,'security_admin','Security and abuse controls'),
-(4,'read_only','Read-only platform inspection');
-
+(1,'super_admin','Full platform control'),(2,'support_admin','Customer and log support access'),(3,'security_admin','Security and abuse controls'),(4,'read_only','Read-only platform inspection');
 INSERT IGNORE INTO admin_permissions (name) VALUES
-('customers.view'),('customers.suspend'),('api_keys.revoke'),('otp_logs.view'),('otp_logs.export'),
-('settings.update'),('ses.manage'),('dns.view'),('billing.manage'),('admins.manage'),('security.manage');
-
-INSERT IGNORE INTO admin_role_permissions (role_id,permission_id)
-SELECT r.id,p.id FROM admin_roles r CROSS JOIN admin_permissions p WHERE r.name='super_admin';
-
+('customers.view'),('customers.suspend'),('api_keys.revoke'),('otp_logs.view'),('otp_logs.export'),('settings.update'),('ses.manage'),('dns.view'),('billing.manage'),('admins.manage'),('security.manage');
+INSERT IGNORE INTO admin_role_permissions (role_id,permission_id) SELECT r.id,p.id FROM admin_roles r CROSS JOIN admin_permissions p WHERE r.name='super_admin';
 INSERT IGNORE INTO billing_plans (name,monthly_otp_limit,hourly_otp_limit,max_projects,max_api_keys,log_retention_days,custom_branding_allowed,webhooks_allowed) VALUES
-('Free/Test',1000,100,1,2,7,0,0),
-('Starter',10000,500,3,5,30,0,1),
-('Pro',100000,2000,10,20,90,1,1),
-('Business',1000000,10000,50,100,365,1,1);
+('Free/Test',1000,100,1,2,7,0,0),('Starter',10000,500,3,5,30,0,1),('Pro',100000,2000,10,20,90,1,1),('Business',1000000,10000,50,100,365,1,1);
