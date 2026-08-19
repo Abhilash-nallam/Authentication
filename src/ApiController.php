@@ -43,9 +43,17 @@ final class ApiController
         }
 
         if ($action === 'request' || $action === 'resend') {
-            $cooldown = Config::int('OTP_RESEND_COOLDOWN_SECONDS', 60);
-            if ($action === 'resend' && !$this->limiter->allow((int)$key['id'], 'resend:' . $email, 1, $cooldown)) {
-                Response::json(['success' => false, 'error' => 'Please wait before requesting another OTP.'], 429);
+            if ($action === 'resend') {
+                $cooldown = Config::int('OTP_RESEND_COOLDOWN_SECONDS', 60);
+                $hourlyLimit = Config::int('OTP_MAX_RESENDS_PER_HOUR', 5);
+
+                if (!$this->limiter->allow((int)$key['id'], 'resend:' . $email, 1, $cooldown)) {
+                    Response::json(['success' => false, 'error' => 'Please wait before requesting another OTP.'], 429);
+                }
+
+                if (!$this->limiter->allow((int)$key['id'], 'resend-hour:' . $email, $hourlyLimit, 3600)) {
+                    Response::json(['success' => false, 'error' => 'Resend limit exceeded.'], 429);
+                }
             }
 
             try {
