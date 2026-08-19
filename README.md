@@ -1,145 +1,98 @@
-# OTP Auth — Phase 1
+# OTP Auth
 
-This implementation follows the agreed project plan: PHP backend, Amazon SES for transactional email, AWS SDK for PHP, API-based OTP generation/verification, resend/rate limiting, registration/login/password-reset flows, API keys, logging, and a basic dashboard.
+Portable PHP + MySQL email OTP platform using Amazon SES.
 
-Source decision document:
-`OTP_Auth_Project_Decision_and_Implementation_Plan.docx`
+## Current architecture
 
-## Important implementation assumptions
+`Customer → optauth.com → PHP application → MySQL → Amazon SES`
 
-The decision document leaves the database, hosting provider, AWS region, final dashboard UI, pricing, and some production configuration open. This starter therefore uses:
-- PHP 8.2+
-- MySQL 8+
-- PDO
-- Composer
-- AWS SDK for PHP
-- phpdotenv
-- Session-based dashboard authentication
-- SHA-256 hashed API keys
-- Database-backed OTP records
+The application does not require Cloudflare, Node.js, Redis, Docker or SSH. Cloudflare can be added later without changing core business logic.
 
-These are implementation choices, not decisions recorded in the source document.
+## Implemented
 
-## 1. Install
+- PHP 8.2+ / PDO / MySQL
+- Amazon SES email delivery
+- Secure OTP generation and keyed hashing
+- OTP expiry, attempt limits and resend cooldowns
+- Per-IP, per-email, per-project and verification rate limits
+- Hashed/revocable API keys with project ownership
+- Stable API error contract
+- Optional request-ID OTP challenge binding
+- Customer registration and email verification
+- Secure customer login sessions and CSRF protection for cookie sessions
+- Project creation and customer isolation
+- Server-side DNS TXT domain verification
+- OTP-Auth subdomain reservation with reserved-name and duplicate protection
+- SES delivery event recording and secure event-ingestion endpoint
+- Expired OTP/rate-limit/session cleanup command
+- Customer dashboard
+
+## Install
 
 ```bash
 composer install
 cp .env.example .env
-```
-
-Create a database and run:
-
-```bash
 mysql -u root -p otp_auth < database/schema.sql
 ```
 
-Generate an application API key:
+For an existing Phase 1 database, apply `database/migrations/001_customer_platform.sql` once. That migration is not idempotent and should be executed only against the original Phase 1 schema.
 
-```bash
-php bin/create_api_key.php "Test Application"
-```
-
-Put the displayed API key into the client application. The plaintext key is shown only once.
-
-## 2. Configure AWS SES
-
-Set AWS credentials in `.env` or, preferably in production, use an IAM role / workload identity supported by the hosting environment.
-
-Before production:
-1. Verify a test sender identity in SES.
-2. Request production access if the AWS account is still in the SES sandbox.
-3. Configure the final AWS region.
-4. After `otp-auth.com` is purchased, configure DNS authentication records.
-5. Verify the domain in SES.
-6. Change `SES_FROM_EMAIL` to `otp@otp-auth.com` or `no-reply@otp-auth.com`.
-
-Never put AWS secret keys in JavaScript or HTML.
-
-## 3. Run locally
+Run locally:
 
 ```bash
 php -S localhost:8080 -t public
 ```
 
-Dashboard:
-`http://localhost:8080/`
+Dashboard: `http://localhost:8080/`
 
-API:
-`POST /api/v1/otp/request`
-`POST /api/v1/otp/verify`
-`POST /api/v1/otp/resend`
+## OTP API
 
-## 4. API authentication
+- `POST /api/v1/otp/request`
+- `POST /api/v1/otp/verify`
+- `POST /api/v1/otp/resend`
+- `GET /health`
 
-Send:
+See `docs/api.md`.
 
-```http
-Authorization: Bearer YOUR_API_KEY
-Content-Type: application/json
+## Customer API
+
+- `POST /api/v1/customer/register`
+- `POST /api/v1/customer/verify-email`
+- `POST /api/v1/customer/login`
+- `POST /api/v1/customer/logout`
+- `POST /api/v1/customer/projects`
+- `POST /api/v1/customer/project-create`
+- `POST /api/v1/customer/domain-start`
+- `POST /api/v1/customer/domain-verify`
+- `POST /api/v1/customer/subdomain`
+- `POST /api/v1/customer/key-create`
+- `POST /api/v1/customer/keys`
+- `POST /api/v1/customer/key-revoke`
+
+See `docs/customer-api.md`.
+
+## Domain verification
+
+A customer enters a real domain such as `slotcare.com`. OTP Auth generates a unique TXT token. The customer adds:
+
+`TXT @ otp-auth-verification=<unique-token>`
+
+The backend performs the DNS lookup and only then marks the project verified.
+
+## Subdomains
+
+After verification, a customer may reserve a slug such as `slotcare`, producing the logical hostname `slotcare.otp-auth.com`.
+
+Actual DNS/hosting provisioning is deliberately provider-independent. InfinityFree or a later production DNS/hosting provider must be configured to route the reserved hostname to the application. The PHP application does not pretend that database insertion alone creates public DNS.
+
+## Cleanup
+
+Run periodically from a trusted scheduler:
+
+```bash
+php bin/cleanup.php
 ```
 
-Example request:
+## Production gate
 
-```json
-{
-  "email": "recipient@example.com",
-  "purpose": "registration"
-}
-```
-
-Purpose values:
-- registration
-- login
-- password_reset
-- generic
-
-Verify:
-
-```json
-{
-  "email": "recipient@example.com",
-  "purpose": "registration",
-  "otp": "123456"
-}
-```
-
-## 5. Production-test sequence
-
-- PHP + SES integration
-- OTP generation
-- Secure OTP storage
-- OTP expiration
-- Verification
-- Resend
-- Rate limiting
-- Registration verification
-- Login verification
-- Password reset verification
-- API keys
-- Security controls
-- Clear responses
-- Professional email template
-- Logging
-- Real email delivery
-- End-to-end testing
-
-Do not purchase the domain until the production test succeeds, per the project decision document.
-
-## 6. Security notes
-
-The OTP itself is not stored in plaintext. A keyed HMAC is stored using `APP_KEY`-derived material. Failed verification attempts are counted and old OTPs are invalidated when a new OTP is issued.
-
-For a real public launch, add HTTPS, secure cookies, a managed secrets mechanism, centralized logs/metrics, database backups, alerting, WAF/DDoS controls where appropriate, and formal security testing.
-
-## 7. Planned domain structure
-
-After purchase and DNS/SES setup:
-
-- `otp-auth.com`
-- `api.otp-auth.com`
-- `otp@otp-auth.com`
-- `no-reply@otp-auth.com`
-- `reset@otp-auth.com`
-- `support@otp-auth.com`
-
-Phase 2 and Phase 3 remain Coming Soon because their detailed scope is intentionally not finalized.
+Do not purchase the public domain or enable uncontrolled customer traffic until the production test passes. The remaining external launch work includes HTTPS, SES production access, authenticated sending-domain DNS, bounce/complaint configuration, backups, monitoring and real end-to-end testing.
