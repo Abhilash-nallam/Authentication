@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS customers (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(320) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  email_verification_hash CHAR(64) NULL,
+  email_verification_expires_at DATETIME NULL,
   email_verified_at DATETIME NULL,
   status ENUM('pending','active','suspended') NOT NULL DEFAULT 'pending',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
