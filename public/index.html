@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTP-AUTH Demo Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">O</div>
+        <div>
+          <strong>OTP-AUTH</strong>
+          <span>Production Test</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-label">MAIN</div>
+        <button class="nav-item active" data-page="overview"><span>⌂</span> Overview</button>
+        <button class="nav-item" data-page="otp"><span>◈</span> OTP Verification</button>
+        <button class="nav-item" data-page="email"><span>✉</span> Email</button>
+
+        <div class="nav-label">PLATFORM</div>
+        <button class="nav-item" data-page="api"><span>⌘</span> API & Keys</button>
+        <button class="nav-item" data-page="customers"><span>◎</span> Customers</button>
+        <button class="nav-item" data-page="logs"><span>≡</span> Logs</button>
+
+        <div class="nav-label">SYSTEM</div>
+        <button class="nav-item" data-page="security"><span>◇</span> Security</button>
+        <button class="nav-item" data-page="settings"><span>⚙</span> Settings</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-dot"></div>
+        <div>
+          <strong>Local environment</strong>
+          <span>Demo mode</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu">☰</button>
+        <div class="breadcrumbs"><span>OTP-AUTH</span><b>/</b><strong id="pageTitle">Overview</strong></div>
+        <div class="top-actions">
+          <span class="env-badge"><i></i> LOCAL</span>
+          <button class="icon-btn" title="Refresh" id="refreshBtn">↻</button>
+          <div class="avatar">OA</div>
+        </div>
+      </header>
+
+      <section class="content">
+
+        <!-- OVERVIEW -->
+        <div class="page active" id="page-overview">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">OTP-AUTH</div>
+              <h1>Dashboard</h1>
+              <p>Local production-test dashboard for the email OTP platform.</p>
+            </div>
+            <button class="primary" data-page-link="otp">Run OTP Test →</button>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card"><span>OTP Requests</span><strong id="statRequests">0</strong><small>Current browser session</small></div>
+            <div class="stat-card"><span>Verified</span><strong id="statVerified">0</strong><small>Successful verifications</small></div>
+            <div class="stat-card"><span>Delivery</span><strong id="statDelivery">—</strong><small>Backend result</small></div>
+            <div class="stat-card"><span>API Status</span><strong id="statApi">Checking…</strong><small>Local Node server</small></div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><div><h2>System status</h2><p>Live checks from this browser.</p></div><button class="small-btn" id="healthCheckBtn">Check now</button></div>
+              <div class="status-list">
+                <div><span><i class="ok"></i> Web dashboard</span><b>Online</b></div>
+                <div><span><i class="ok"></i> OTP API</span><b id="healthStatus">Checking</b></div>
+                <div><span><i class="ok"></i> Email provider</span><b>Configured by server</b></div>
+                <div><span><i class="demo"></i> Database</span><b>Demo / not connected</b></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div><h2>Quick actions</h2><p>Jump to the main production-test areas.</p></div></div>
+              <div class="quick-grid">
+                <button data-page-link="otp">Send OTP</button>
+                <button data-page-link="email">Email tests</button>
+                <button data-page-link="api">API test</button>
+                <button data-page-link="logs">View logs</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><h2>Recent activity</h2><p>Events generated during this local session.</p></div><button class="small-btn" id="clearLogsBtn">Clear</button></div>
+            <div id="activityTable" class="table-wrap"></div>
+          </div>
+        </div>
+
+        <!-- OTP -->
+        <div class="page" id="page-otp">
+          <div class="page-head">
+            <div><div class="eyebrow">CORE</div><h1>OTP Verification</h1><p>Use the existing local OTP API to send and verify a real email OTP.</p></div>
+          </div>
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><div><h2>Test verification</h2><p>This uses <code>/send-otp</code> and <code>/verify-otp</code>.</p></div></div>
+              <label>Email address</label>
+              <input id="otpEmail" type="email" placeholder="you@example.com" autocomplete="email">
+              <button class="primary full" id="sendOtpBtn">Send OTP</button>
+              <div class="divider"></div>
+              <label>6-digit OTP</label>
+              <input id="otpCode" inputmode="numeric" maxlength="6" placeholder="123456">
+              <button class="secondary full" id="verifyOtpBtn">Verify OTP</button>
+              <button class="text-btn full" id="resendOtpBtn">Resend OTP</button>
+              <div id="otpMessage" class="notice hidden"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div><h2>OTP policy</h2><p>Current values from the Node backend.</p></div></div>
+              <div class="policy-row"><span>OTP length</span><b>6 digits</b></div>
+              <div class="policy-row"><span>Expiration</span><b>5 minutes</b></div>
+              <div class="policy-row"><span>Resend cooldown</span><b>60 seconds</b></div>
+              <div class="policy-row"><span>Maximum attempts</span><b>5</b></div>
+              <div class="callout">For this demo, OTPs are kept in server memory. Restarting the Node process clears them.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EMAIL -->
+        <div class="page" id="page-email">
+          <div class="page-head"><div><div class="eyebrow">DELIVERY</div><h1>Email</h1><p>Demo email delivery controls and provider information.</p></div></div>
+          <div class="stats-grid">
+            <div class="stat-card"><span>Provider</span><strong>SMTP</strong><small>Nodemailer</small></div>
+            <div class="stat-card"><span>Sender</span><strong id="senderDisplay">Configured</strong><small>Read from server environment</small></div>
+            <div class="stat-card"><span>Templates</span><strong>1</strong><small>OTP verification</small></div>
+            <div class="stat-card"><span>Mode</span><strong>Local</strong><small>Production UI demo</small></div>
+          </div>
+          <div class="grid-2">
+            <div class="panel"><div class="panel-head"><div><h2>OTP email template</h2><p>Preview of the current message.</p></div></div>
+              <div class="email-preview"><div class="mail-title">Email Verification</div><p>Hello,</p><p>Use the following one-time password to verify your email address:</p><div class="fake-otp">123456</div><p>This OTP is valid for <b>5 minutes</b>.</p><hr><small>This is an automated email. Please do not reply.</small></div>
+            </div>
+            <div class="panel"><div class="panel-head"><div><h2>Delivery notes</h2><p>What this demo currently covers.</p></div></div>
+              <div class="check-row">✓ Email send endpoint connected</div>
+              <div class="check-row">✓ Success/error responses displayed</div>
+              <div class="check-row">✓ Resend cooldown enforced by backend</div>
+              <div class="check-row">○ Bounce/complaint analytics not implemented</div>
+              <div class="check-row">○ SES metrics not connected to this Node demo</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API -->
+        <div class="page" id="page-api">
+          <div class="page-head"><div><div class="eyebrow">DEVELOPER</div><h1>API & Keys</h1><p>Demo API documentation and local health testing.</p></div></div>
+          <div class="panel">
+            <div class="panel-head"><div><h2>API endpoints</h2><p>These are the endpoints implemented in the current server.js.</p></div></div>
+            <div class="endpoint"><span class="method get">GET</span><code>/health</code><span>Server health check</span><button class="small-btn" id="apiHealthBtn">Test</button></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/send-otp</code><span>Send verification OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
+            <div class="endpoint"><span class="method post">POST</span><code>/verify-otp</code><span>Verify submitted OTP</span><button class="small-btn" data-page-link="otp">Open</button></div>
+          </div>
+          <div class="grid-2">
+            <div class="panel"><div class="panel-head"><div><h2>Demo API key</h2><p>UI-only placeholder. No real key is created.</p></div></div><div class="key-box"><code>oa_demo_••••••••••••••••</code><button class="small-btn" id="copyDemoKey">Copy</button></div></div>
+            <div class="panel"><div class="panel-head"><div><h2>Production checklist</h2><p>Items to implement before public release.</p></div></div><div class="check-row">○ Persistent API key storage</div><div class="check-row">○ Per-key rate limits</div><div class="check-row">○ Authentication & RBAC</div><div class="check-row">○ Audit logging</div></div>
+          </div>
+        </div>
+
+        <!-- CUSTOMERS -->
+        <div class="page" id="page-customers">
+          <div class="page-head"><div><div class="eyebrow">TENANTS</div><h1>Customers</h1><p>Demo customer/tenant management screen.</p></div><button class="primary" id="addCustomerBtn">+ Add customer</button></div>
+          <div class="panel"><div class="panel-head"><div><h2>Customer accounts</h2><p>Stored only in this browser for the demo.</p></div><input class="search" id="customerSearch" placeholder="Search customers"></div><div id="customerTable" class="table-wrap"></div></div>
+        </div>
+
+        <!-- LOGS -->
+        <div class="page" id="page-logs">
+          <div class="page-head"><div><div class="eyebrow">OBSERVABILITY</div><h1>Logs</h1><p>Local activity generated by this browser session.</p></div><button class="danger-btn" id="clearLogsBtn2">Clear logs</button></div>
+          <div class="panel"><div id="fullLogs" class="log-list"></div></div>
+        </div>
+
+        <!-- SECURITY -->
+        <div class="page" id="page-security">
+          <div class="page-head"><div><div class="eyebrow">PROTECTION</div><h1>Security</h1><p>Demo view of the security controls that belong in the platform.</p></div></div>
+          <div class="grid-2">
+            <div class="panel"><div class="panel-head"><div><h2>Implemented in current backend</h2></div></div>
+              <div class="security-item"><span class="security-icon good">✓</span><div><b>Input validation</b><small>Email and 6-digit OTP validation</small></div></div>
+              <div class="security-item"><span class="security-icon good">✓</span><div><b>OTP attempt limit</b><small>Maximum 5 incorrect attempts</small></div></div>
+              <div class="security-item"><span class="security-icon good">✓</span><div><b>Resend cooldown</b><small>60-second request cooldown</small></div></div>
+              <div class="security-item"><span class="security-icon good">✓</span><div><b>Timing-safe OTP comparison</b><small>Uses crypto.timingSafeEqual</small></div></div>
+            </div>
+            <div class="panel"><div class="panel-head"><div><h2>Production hardening</h2></div></div>
+              <div class="security-item"><span class="security-icon todo">○</span><div><b>Persistent encrypted storage</b><small>Move OTP state out of process memory</small></div></div>
+              <div class="security-item"><span class="security-icon todo">○</span><div><b>API authentication</b><small>Replace demo UI with real tenant auth</small></div></div>
+              <div class="security-item"><span class="security-icon todo">○</span><div><b>Distributed rate limiting</b><small>Use shared storage for production</small></div></div>
+              <div class="security-item"><span class="security-icon todo">○</span><div><b>Secret management</b><small>Use a managed secret store in deployment</small></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div class="page" id="page-settings">
+          <div class="page-head"><div><div class="eyebrow">CONFIGURATION</div><h1>Settings</h1><p>Demo settings screen. Values here do not change server configuration.</p></div></div>
+          <div class="panel settings-panel">
+            <div class="setting"><div><b>Environment</b><small>Current browser environment</small></div><span class="pill">LOCAL</span></div>
+            <div class="setting"><div><b>OTP expiration</b><small>Configured in server.js</small></div><strong>5 minutes</strong></div>
+            <div class="setting"><div><b>Resend cooldown</b><small>Configured in server.js</small></div><strong>60 seconds</strong></div>
+            <div class="setting"><div><b>Maximum attempts</b><small>Configured in server.js</small></div><strong>5</strong></div>
+            <div class="setting"><div><b>Theme</b><small>Dashboard appearance</small></div><select id="themeSelect"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="script.js"></script>
+</body>
+</html>

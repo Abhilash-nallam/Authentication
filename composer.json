@@ -1,0 +1,20 @@
+{
+  "name": "otp-auth/otp-auth",
+  "description": "OTP Auth - Email OTP verification API platform",
+  "type": "project",
+  "require": {
+    "php": "^8.2",
+    "aws/aws-sdk-php": "^3.0",
+    "vlucas/phpdotenv": "^5.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "OtpAuth\\": "src/"
+    }
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "@php -r \"file_exists('storage') || mkdir('storage', 0750, true);\""
+    ]
+  }
+}
