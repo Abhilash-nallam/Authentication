@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS domain_verifications (
   project_id BIGINT UNSIGNED NOT NULL,
   domain VARCHAR(253) NOT NULL,
   token_hash CHAR(64) NOT NULL,
+  token_ciphertext TEXT NOT NULL,
   verified_at DATETIME NULL,
   expires_at DATETIME NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
