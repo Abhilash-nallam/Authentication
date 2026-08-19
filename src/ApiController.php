@@ -15,12 +15,12 @@ final class ApiController
     {
         $plainKey = Request::bearerToken();
         if (!$plainKey) {
-            Response::json(['success' => false, 'error' => 'API key required.'], 401);
+            Response::error('api_key_required', 'API key required.', 401);
         }
 
         $key = $this->keys->authenticate($plainKey);
         if (!$key) {
-            Response::json(['success' => false, 'error' => 'Invalid API key.'], 401);
+            Response::error('invalid_api_key', 'Invalid API key.', 401);
         }
 
         $data = Request::json();
@@ -30,16 +30,30 @@ final class ApiController
         $ip = Request::ip();
         $limit = Config::int('OTP_MAX_REQUESTS_PER_HOUR', 10);
         if (!$this->limiter->allow((int)$key['id'], 'ip:' . $ip . ':hour', $limit, 3600)) {
-            Response::json(['success' => false, 'error' => 'Rate limit exceeded.'], 429);
+            Response::error('rate_limit_exceeded', 'Rate limit exceeded.', 429);
         }
 
         if ($action === 'verify') {
             $otp = Validation::otp($data['otp'] ?? null);
-            $result = $this->otp->verify($email, $purpose, $otp, (int)$key['id']);
-            if ($result['verified']) {
-                Response::json(['success' => true, 'verified' => true, 'request_id' => $result['request_id']]);
+            $requestId = isset($data['request_id']) ? Validation::requestId($data['request_id']) : null;
+
+            $verifyRate = Config::int('OTP_MAX_VERIFY_REQUESTS_PER_HOUR', 20);
+            if (!$this->limiter->allow((int)$key['id'], 'verify:' . $email, $verifyRate, 3600)) {
+                Response::error('verify_rate_limit_exceeded', 'Verification rate limit exceeded.', 429);
             }
-            Response::json(['success' => false, 'verified' => false, 'error' => $result['reason']], 400);
+
+            $result = $this->otp->verify($email, $purpose, $otp, (int)$key['id'], $requestId);
+            if ($result['verified']) {
+                Response::success(['verified' => true, 'request_id' => $result['request_id']]);
+            }
+
+            $errors = [
+                'expired' => ['otp_expired', 'OTP has expired.'],
+                'too_many_attempts' => ['otp_attempts_exceeded', 'Maximum OTP verification attempts exceeded.'],
+                'invalid' => ['invalid_otp', 'Invalid OTP.'],
+            ];
+            [$code, $message] = $errors[$result['reason']] ?? ['otp_verification_failed', 'OTP verification failed.'];
+            Response::error($code, $message, $result['reason'] === 'too_many_attempts' ? 429 : 400);
         }
 
         if ($action === 'request' || $action === 'resend') {
@@ -48,28 +62,27 @@ final class ApiController
                 $hourlyLimit = Config::int('OTP_MAX_RESENDS_PER_HOUR', 5);
 
                 if (!$this->limiter->allow((int)$key['id'], 'resend:' . $email, 1, $cooldown)) {
-                    Response::json(['success' => false, 'error' => 'Please wait before requesting another OTP.'], 429);
+                    Response::error('resend_cooldown', 'Please wait before requesting another OTP.', 429);
                 }
 
                 if (!$this->limiter->allow((int)$key['id'], 'resend-hour:' . $email, $hourlyLimit, 3600)) {
-                    Response::json(['success' => false, 'error' => 'Resend limit exceeded.'], 429);
+                    Response::error('resend_rate_limit_exceeded', 'Resend limit exceeded.', 429);
                 }
             }
 
             try {
                 $result = $this->otp->request($email, $purpose, (int)$key['id']);
             } catch (\Throwable $e) {
-                Response::json(['success' => false, 'error' => 'OTP delivery failed.'], 502);
+                Response::error('otp_delivery_failed', 'OTP delivery failed.', 502);
             }
 
-            Response::json([
-                'success' => true,
+            Response::success([
                 'message' => 'OTP sent.',
                 'request_id' => $result['request_id'],
                 'expires_at' => $result['expires_at'],
             ], 201);
         }
 
-        Response::json(['success' => false, 'error' => 'Unknown action.'], 404);
+        Response::error('unknown_action', 'Unknown action.', 404);
     }
 }
