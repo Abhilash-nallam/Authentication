@@ -20,13 +20,16 @@ final class CustomerController
             if ($action==='login') {
                 $token=$this->customers->login((string)($data['email']??''),(string)($data['password']??''));
                 $secure=Config::env('APP_ENV','development')==='production';
+                $csrf=bin2hex(random_bytes(24));
                 setcookie('otp_auth_session',$token,['expires'=>time()+86400,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
-                Response::success(['message'=>'Login successful.']);
+                setcookie('otp_auth_csrf',$csrf,['expires'=>time()+86400,'path'=>'/','secure'=>$secure,'httponly'=>false,'samesite'=>'Lax']);
+                Response::success(['message'=>'Login successful.','csrf_token'=>$csrf]);
             }
-            if ($action==='logout') { $token=$this->sessionToken(); $this->customers->logout($token); setcookie('otp_auth_session','',['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax']); Response::success(['message'=>'Logged out.']); }
+            if ($action==='logout') { $token=$this->sessionToken(); $this->customers->logout($token); setcookie('otp_auth_session','',['expires'=>time()-3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax']); setcookie('otp_auth_csrf','',['expires'=>time()-3600,'path'=>'/','samesite'=>'Lax']); Response::success(['message'=>'Logged out.']); }
 
             $customer=$this->customers->customerFromSession($this->sessionToken());
             if (!$customer) Response::error('authentication_required','Customer session required.',401);
+            if ($this->usingCookieSession() && !hash_equals((string)($_COOKIE['otp_auth_csrf']??''),(string)($_SERVER['HTTP_X_CSRF_TOKEN']??''))) Response::error('csrf_failed','CSRF token is required.',403);
             $customerId=(int)$customer['id'];
             if ($action==='projects') Response::success(['projects'=>$this->projects->listForCustomer($customerId)]);
             if ($action==='project-create') Response::success(['project'=>$this->projects->create($customerId,(string)($data['name']??''))],201);
@@ -41,10 +44,6 @@ final class CustomerController
           catch (\DomainException $e) { Response::error('operation_rejected',$e->getMessage(),409); }
     }
 
-    private function sessionToken(): string
-    {
-        $header=$_SERVER['HTTP_AUTHORIZATION']??'';
-        if (preg_match('/^Bearer\s+(.+)$/i',$header,$m)) return trim($m[1]);
-        return (string)($_COOKIE['otp_auth_session']??'');
-    }
+    private function usingCookieSession(): bool { return empty($_SERVER['HTTP_AUTHORIZATION']) && !empty($_COOKIE['otp_auth_session']); }
+    private function sessionToken(): string { $header=$_SERVER['HTTP_AUTHORIZATION']??''; if (preg_match('/^Bearer\s+(.+)$/i',$header,$m)) return trim($m[1]); return (string)($_COOKIE['otp_auth_session']??''); }
 }
