@@ -1,142 +1,186 @@
-# OTP Auth Production Implementation Goal and Plan
+# OTP Auth Production SaaS Implementation Plan
+
+This repository follows the uploaded production-development direction: **Admin Dashboard B first, Customer Dashboard A second, database/control-plane upgrades, SES/DNS production work, production hosting, then first-party website integration.** fileciteturn60file0
+
+## Product identity
+
+The final public platform is **OTP-AUTH.COM**. The domain will be purchased later, after the production test gate. Until then, `PLATFORM_DOMAIN` is configurable so the same code can operate on the current public hosting domain.
 
 ## Current implementation status
 
-The repository has progressed from the Phase 1 OTP service into the first customer-platform layer.
+### Completed in code
 
-### Completed in the current implementation
-
-- Stable machine-readable API error codes and success envelope.
-- Optional `request_id` challenge binding.
-- Per-IP, per-email, per-project and verification rate limits.
-- Project isolation for new customer API keys.
-- API-key listing and revocation; creating a new key provides rotation capability.
-- Production configuration validation for `APP_KEY`, debug mode and SES sender.
-- Customer registration with password hashing and email verification.
-- Secure customer sessions using HTTP-only cookies and CSRF protection for browser sessions.
-- Customer project creation and isolation.
+- Phase 1 OTP API foundation.
+- Stable API response/error contract.
+- Request-ID challenge binding.
+- Layered per-key and global IP/email/project/verification abuse controls.
+- Project-scoped hashed API keys.
+- Key rotation/revocation lifecycle.
+- Customer registration and email verification.
+- Secure customer sessions and CSRF protection.
+- Customer project/app isolation.
 - Server-side DNS TXT domain verification.
-- Encrypted-at-rest domain verification token material plus hash comparison.
-- Reserved-name and duplicate protection for OTP-Auth subdomain reservation.
-- Expired OTP/rate-limit/session cleanup command.
-- SES send/failure event recording and a protected event-ingestion endpoint.
-- Authenticated customer dashboard foundation.
-- PHP CI syntax and smoke checks.
-- Customer API documentation.
+- Configurable OTP-Auth subdomain reservation.
+- OTP lifecycle events and delivery state.
+- SES send/failure event recording.
+- Cleanup command and retention controls.
+- Admin authentication, failed-login lockout and session management.
+- Database-driven admin roles/permissions foundation.
+- Admin customer suspension/reactivation.
+- Admin API-key revocation.
+- Admin OTP-event inspection.
+- Initial Admin Dashboard B.
+- Initial Customer Dashboard A.
+- CI/smoke-check workflow.
 
-### Still requires real environment validation
+## Architecture matched to the supplied plan
 
-- MySQL migration execution against the existing database.
-- PHP/Composer/SES end-to-end execution.
-- SES sandbox/production configuration.
-- Real DNS TXT verification against a customer domain.
-- Actual DNS/hosting provisioning for `slotcare.otp-auth.com`.
-- SES bounce/complaint provider configuration and signed event delivery.
-- Full browser/widget integration.
-- Backups, monitoring, WAF/infrastructure controls and production launch testing.
+```text
+OTP-AUTH.COM (future public domain)
+        |
+        +--> Public website / registration
+        +--> Customer Dashboard A
+        +--> Admin Dashboard B
+        +--> OTP API
+        |
+        v
+PHP application
+        |
+        +--> MySQL control plane + OTP data
+        +--> Amazon SES
+        +--> DNS TXT verification
+```
 
-## 1. Product goal
+Cloudflare remains optional at the application layer. The first deployment can continue with the current public domain/hosting environment; a proper production PHP host and managed MySQL should be used before uncontrolled public traffic.
 
-OTP Auth is planned as a production-ready email OTP verification platform. The first production version should let a customer application request, resend, and verify one-time passwords through an authenticated HTTP API while OTP Auth handles OTP generation, secure storage, expiry, resend cooldowns, verification attempts, logging, and email delivery through Amazon SES.
+## Admin Dashboard B — first control plane
 
-The broader customer journey is:
+Implemented foundation:
 
-`Customer registers → verifies email → creates project → enters website domain → DNS TXT verification → chooses OTP-Auth subdomain → creates API credentials → integrates OTP service.`
+- Admin login.
+- Eight-hour admin sessions.
+- Five-failure temporary lockout.
+- Super Admin / Support / Security / Read Only role foundation.
+- Permission table foundation.
+- Customer list.
+- Customer suspension/reactivation.
+- API-key inspection and revocation.
+- OTP event inspection.
+- Overview metrics.
 
-## 2. Production implementation phases
+Next Admin B expansion:
 
-### Phase A — Repository cleanup and baseline verification
+- Full customer detail page.
+- App/project management.
+- SES status page.
+- DNS checklist.
+- Security center and blocked entities UI.
+- Global settings UI with database-backed non-secret settings.
+- Admin-user management.
+- Audit-log export.
 
-**Completed.**
+## Customer Dashboard A
 
-### Phase B — API contract hardening
+Implemented foundation:
 
-**Completed.**
+- Registration/login.
+- Email verification.
+- Project creation/listing.
+- API-key management API.
+- Domain verification API.
+- Subdomain reservation API.
 
-Stable response/error contracts, request-ID binding, retry guidance and documentation are implemented in `docs/api.md`.
+Next Customer A expansion:
 
-### Phase C — Security hardening
+- Full app/project UI.
+- OTP logs and analytics.
+- Key environment/limits UI.
+- Email branding.
+- Webhooks.
+- Documentation page.
+- Usage/plan placeholder.
+- Password reset and account security improvements.
 
-**Substantially implemented; runtime validation remains.**
+## Database/control plane
 
-Implemented:
+Migration `002_saas_control_plane.sql` adds the control-plane structures from the supplied plan, including:
 
-- Production secret/debug checks.
-- Per-IP/email/project/verification limits.
-- API-key revocation/listing.
-- Customer session security and CSRF controls.
-- Project ownership checks.
-- Domain verification server-side validation.
-- Secret material excluded from API responses and logs where designed.
+- `admin_users`
+- `admin_roles`
+- `admin_permissions`
+- `admin_role_permissions`
+- `admin_sessions`
+- expanded `api_keys`
+- expanded `otp_challenges`
+- `otp_events`
+- `customer_settings`
+- `app_settings`
+- `global_settings`
+- `usage_daily`
+- `webhooks`
+- `webhook_deliveries`
+- `blocked_entities`
+- `ses_events`
+- `billing_plans`
+- `customer_plan_subscriptions`
+- `abuse_limits`
 
-Remaining: infrastructure-level controls and a final log-redaction/security review during the production test.
+The existing `projects` table is the current canonical backend representation of a customer app/project; the UI should call these **Apps/Projects** to match the product terminology without creating duplicate ownership models.
 
-### Phase D — Database and operations readiness
+## SES / deliverability
 
-**Partially implemented.**
+Application support exists for SES sending, configuration sets, and send/failure event storage.
 
-- Fresh-install schema includes customer/project/domain/session/event data.
-- A one-time migration is provided for the existing Phase 1 database.
-- Cleanup command exists for expired OTP, rate-limit and session data.
+Still external:
 
-Remaining: execute the migration, review production indexes, test backup/restore and schedule cleanup.
+- Final sending-domain purchase.
+- SES domain identity verification.
+- Easy DKIM.
+- SPF.
+- DMARC.
+- Custom MAIL FROM.
+- SES production access.
+- Bounce/complaint event wiring.
+- Real inbox/deliverability testing.
 
-### Phase E — Amazon SES production readiness
+The supplied plan specifically highlights deliverability because the Phase 1 test email reached spam. fileciteturn60file0
 
-**Application support implemented; AWS setup remains external.**
+## Domain/subdomain rule
 
-- SES sending is implemented.
-- SES configuration-set name is supported.
-- Send/failure events are recorded.
-- Protected event ingestion exists as an application boundary.
+Do not hardcode `otp-auth.com` into development logic.
 
-Remaining: SES production access, verified sending domain, DKIM/SPF/DMARC, configuration-set/SNS event wiring, bounce/complaint handling and real delivery testing.
+During development:
 
-### Phase F — Dashboard/admin implementation
+`PLATFORM_DOMAIN=<current public hosting domain>`
 
-**Customer dashboard foundation implemented.**
+After launch domain purchase:
 
-It now supports customer registration/login, project creation and project listing. Domain verification, subdomain reservation and API-key management are exposed through the customer API and can be added to the UI without changing the core services.
+`PLATFORM_DOMAIN=otp-auth.com`
 
-### Phase G — Observability and incident response
+Then a verified customer slug `slotcare` resolves logically to:
 
-**Partially implemented.**
+`slotcare.otp-auth.com`
 
-Structured application logging and email-event persistence exist. CI syntax/smoke checks are included.
+The PHP application only reserves the name. Actual DNS/hosting routing must be configured at the infrastructure layer.
 
-Remaining: centralized metrics, alerts and formal incident runbooks.
+## Production gate
 
-### Phase H — Production test and launch gate
+The code is **not** marked production-ready until the real environment passes:
 
-**Pending.**
+1. Composer/PHP checks.
+2. MySQL migration.
+3. Customer registration + verification email.
+4. Admin login/control.
+5. Project creation.
+6. Real DNS TXT verification.
+7. Subdomain reservation and actual routing.
+8. API key creation/rotation/revocation.
+9. OTP send/resend/verify.
+10. Wrong/expired/reused OTP tests.
+11. Abuse-limit tests.
+12. SES delivery/failure/bounce/complaint tests.
+13. Backup/restore.
+14. HTTPS/security validation.
+15. Full production-test checklist.
 
-This cannot be honestly marked complete until the application has been executed against the real PHP/MySQL/SES environment and the production checklist passes.
-
-## 3. Customer-platform implementation
-
-The customer platform now follows:
-
-`Customer → account → project → domain TXT verification → verified project → reserved OTP-Auth subdomain → project API key → OTP API`
-
-A reserved `slotcare` slug is represented as `slotcare.otp-auth.com` in the project record. Public DNS creation is intentionally not faked by the PHP application; it must be performed by the selected DNS/hosting deployment layer.
-
-## 4. Next required real-world validation
-
-1. Run Composer install and PHP CI checks.
-2. Import a fresh schema or run the one-time migration against the existing database.
-3. Generate a customer account and verify email through SES.
-4. Create a project.
-5. Verify a real domain with a DNS TXT record.
-6. Reserve a subdomain.
-7. Create a project API key.
-8. Send, resend and verify real OTPs.
-9. Test wrong/expired/reused OTPs and abuse limits.
-10. Test API-key revocation.
-11. Test SES delivery/failure events.
-12. Execute the production-test checklist.
-
-Only after these pass should public domain purchase/DNS launch and uncontrolled customer traffic proceed.
-
-## 5. Hosting principle
-
-The application remains portable PHP + MySQL and does not require Cloudflare, Node.js, Redis, Docker or SSH. Cloudflare is optional and can be introduced later without changing core business logic.
+Only after those pass should `otp-auth.com` be purchased and public production traffic opened, consistent with the supplied plan. fileciteturn60file0
