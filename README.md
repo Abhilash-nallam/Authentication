@@ -2,30 +2,51 @@
 
 Portable PHP + MySQL email OTP platform using Amazon SES.
 
+## Product direction
+
+The long-term public platform is **OTP-AUTH.COM**. The domain is intentionally not purchased yet. Until launch, `PLATFORM_DOMAIN` points to the current public hosting domain so development does not depend on the final brand domain.
+
+Target production shape:
+
+- `otp-auth.com` — public website / registration / login
+- `app.otp-auth.com` — Customer Dashboard A
+- `admin.otp-auth.com` — Admin Dashboard B
+- `api.otp-auth.com` — OTP API
+- `mail.otp-auth.com` — SES custom MAIL FROM
+- `otp@otp-auth.com` / `no-reply@otp-auth.com` — sender identities
+- `support@otp-auth.com` — support
+
+Cloudflare is optional. The core application remains portable PHP + MySQL.
+
 ## Current architecture
 
-`Customer → optauth.com → PHP application → MySQL → Amazon SES`
+`Customer → Customer Dashboard → Project/App → API Key → PHP OTP API → MySQL → Amazon SES → recipient`
 
-The application does not require Cloudflare, Node.js, Redis, Docker or SSH. Cloudflare can be added later without changing core business logic.
+Admin B sits above the platform and controls customers, projects/apps, keys, OTP events, security and non-secret global settings.
 
-## Implemented
+## Implemented foundation
 
 - PHP 8.2+ / PDO / MySQL
 - Amazon SES email delivery
 - Secure OTP generation and keyed hashing
 - OTP expiry, attempt limits and resend cooldowns
-- Per-IP, per-email, per-project and verification rate limits
-- Hashed/revocable API keys with project ownership
-- Stable API error contract
-- Optional request-ID OTP challenge binding
+- Layered per-IP, per-email, per-project and verification abuse controls
+- Hashed/revocable project API keys
+- Key rotation and lifecycle status
+- Stable API error contract and request-ID binding
 - Customer registration and email verification
-- Secure customer login sessions and CSRF protection for cookie sessions
-- Project creation and customer isolation
+- Secure customer login sessions and CSRF protection
+- Customer project/app isolation
 - Server-side DNS TXT domain verification
-- OTP-Auth subdomain reservation with reserved-name and duplicate protection
-- SES delivery event recording and secure event-ingestion endpoint
-- Expired OTP/rate-limit/session cleanup command
-- Customer dashboard
+- Configurable platform subdomain reservation
+- OTP lifecycle event storage
+- SES delivery event recording
+- Cleanup command for runtime data
+- Admin authentication with role/permission foundation
+- Admin customer/key/OTP-event control API
+- Initial Admin Dashboard B UI
+- Customer Dashboard A foundation
+- PHP CI syntax/smoke checks
 
 ## Install
 
@@ -33,9 +54,17 @@ The application does not require Cloudflare, Node.js, Redis, Docker or SSH. Clou
 composer install
 cp .env.example .env
 mysql -u root -p otp_auth < database/schema.sql
+mysql -u root -p otp_auth < database/migrations/001_customer_platform.sql
+mysql -u root -p otp_auth < database/migrations/002_saas_control_plane.sql
 ```
 
-For an existing Phase 1 database, apply `database/migrations/001_customer_platform.sql` once. That migration is not idempotent and should be executed only against the original Phase 1 schema.
+For an existing Phase 1 database, run the migrations once in order. They are upgrade scripts, not general-purpose rollback migrations.
+
+Create the first super admin after the migrations:
+
+```bash
+php bin/create_admin.php admin@example.com 'use-a-strong-password-here'
+```
 
 Run locally:
 
@@ -43,7 +72,8 @@ Run locally:
 php -S localhost:8080 -t public
 ```
 
-Dashboard: `http://localhost:8080/`
+Customer dashboard: `/`
+Admin dashboard: `/admin`
 
 ## OTP API
 
@@ -54,7 +84,7 @@ Dashboard: `http://localhost:8080/`
 
 See `docs/api.md`.
 
-## Customer API
+## Customer platform API
 
 - `POST /api/v1/customer/register`
 - `POST /api/v1/customer/verify-email`
@@ -67,32 +97,30 @@ See `docs/api.md`.
 - `POST /api/v1/customer/subdomain`
 - `POST /api/v1/customer/key-create`
 - `POST /api/v1/customer/keys`
+- `POST /api/v1/customer/key-rotate`
 - `POST /api/v1/customer/key-revoke`
 
-See `docs/customer-api.md`.
+## Admin platform API
 
-## Domain verification
+- `POST /api/v1/admin/login`
+- `POST /api/v1/admin/logout`
+- `POST /api/v1/admin/me`
+- `POST /api/v1/admin/overview`
+- `POST /api/v1/admin/customers`
+- `POST /api/v1/admin/customer-suspend`
+- `POST /api/v1/admin/customer-reactivate`
+- `POST /api/v1/admin/api-keys`
+- `POST /api/v1/admin/key-revoke`
+- `POST /api/v1/admin/otp-logs`
 
-A customer enters a real domain such as `slotcare.com`. OTP Auth generates a unique TXT token. The customer adds:
+## Domain verification and subdomains
 
-`TXT @ otp-auth-verification=<unique-token>`
+A customer enters a real domain such as `slotcare.com`. OTP Auth generates a unique TXT token. The customer adds it through their DNS provider. The backend performs the DNS lookup and only then marks the project verified.
 
-The backend performs the DNS lookup and only then marks the project verified.
+A verified customer can reserve a slug such as `slotcare`. The resulting hostname is built from `PLATFORM_DOMAIN`. During development this can be the current public hosting domain. After `otp-auth.com` is purchased and deployed, set `PLATFORM_DOMAIN=otp-auth.com` and the same project logic produces `slotcare.otp-auth.com`.
 
-## Subdomains
-
-After verification, a customer may reserve a slug such as `slotcare`, producing the logical hostname `slotcare.otp-auth.com`.
-
-Actual DNS/hosting provisioning is deliberately provider-independent. InfinityFree or a later production DNS/hosting provider must be configured to route the reserved hostname to the application. The PHP application does not pretend that database insertion alone creates public DNS.
-
-## Cleanup
-
-Run periodically from a trusted scheduler:
-
-```bash
-php bin/cleanup.php
-```
+The PHP application never pretends that DNS/hosting provisioning happened. The selected deployment/DNS layer must actually route the hostname before public use.
 
 ## Production gate
 
-Do not purchase the public domain or enable uncontrolled customer traffic until the production test passes. The remaining external launch work includes HTTPS, SES production access, authenticated sending-domain DNS, bounce/complaint configuration, backups, monitoring and real end-to-end testing.
+The application is not considered production-ready merely because code exists in GitHub. Run `docs/production-test.md` against the real PHP/MySQL/SES environment. Domain purchase and public launch remain after successful production testing.
