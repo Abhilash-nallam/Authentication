@@ -12,25 +12,32 @@ final class OtpService
 
     public function __construct(private PDO $db)
     {
-        $this->ses = new SesV2Client([
+        $config = [
             'version' => 'latest',
             'region' => Config::env('AWS_REGION', 'ap-south-1'),
-            'credentials' => [
-                'key' => Config::env('AWS_ACCESS_KEY_ID', ''),
-                'secret' => Config::env('AWS_SECRET_ACCESS_KEY', ''),
-            ],
-        ]);
+        ];
+
+        // If explicit credentials are configured, use them. Otherwise let the
+        // AWS SDK use its normal credential provider chain (IAM role/profile/etc.).
+        $accessKey = Config::env('AWS_ACCESS_KEY_ID');
+        $secretKey = Config::env('AWS_SECRET_ACCESS_KEY');
+        if ($accessKey && $secretKey) {
+            $config['credentials'] = [
+                'key' => $accessKey,
+                'secret' => $secretKey,
+            ];
+        }
+
+        $this->ses = new SesV2Client($config);
     }
 
     public function request(string $email, string $purpose, int $apiKeyId): array
     {
         $this->invalidateOpenChallenges($email, $purpose, $apiKeyId);
 
-        $otp = str_pad((string)random_int(0, 999999), Config::int('OTP_LENGTH', 6), '0', STR_PAD_LEFT);
-        if (Config::int('OTP_LENGTH', 6) !== 6) {
-            $max = (10 ** Config::int('OTP_LENGTH', 6)) - 1;
-            $otp = str_pad((string)random_int(0, $max), Config::int('OTP_LENGTH', 6), '0', STR_PAD_LEFT);
-        }
+        $length = Config::int('OTP_LENGTH', 6);
+        $max = (10 ** $length) - 1;
+        $otp = str_pad((string)random_int(0, $max), $length, '0', STR_PAD_LEFT);
 
         $requestId = self::uuid();
         $expiresAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
@@ -126,10 +133,10 @@ final class OtpService
     private function hashOtp(string $otp, string $email, string $requestId): string
     {
         $secret = Config::env('APP_KEY');
-        if (!$secret) {
-            // Development fallback only. Production must define APP_KEY.
-            $secret = Config::env('AWS_SECRET_ACCESS_KEY', 'development-only-secret');
+        if (!$secret || strlen($secret) < 32) {
+            throw new \RuntimeException('APP_KEY must be configured with at least 32 characters.');
         }
+
         return hash_hmac('sha256', $email . '|' . $requestId . '|' . $otp, $secret);
     }
 
