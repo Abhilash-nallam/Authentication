@@ -12,8 +12,10 @@ final class ApiController
         $plainKey=Request::bearerToken();if(!$plainKey)Response::error('api_key_required','API key required.',401);
         $key=$this->keys->authenticate($plainKey);if(!$key)Response::error('invalid_api_key','Invalid API key or unavailable project.',401);
         $data=Request::json();$email=Validation::email($data['email']??null);$purpose=Validation::purpose($data['purpose']??'generic');$apiKeyId=(int)$key['id'];$projectId=isset($key['project_id'])?(int)$key['project_id']:null;$ip=Request::ip();$emailHash=hash('sha256',$email);
+        if(!$this->keys->endpointAllowed($key,$action,$purpose))Response::error('api_key_scope_denied','API key is not permitted to use this operation.',403);
         $this->allowGlobal('ip:'.$ip,$this->settings->int('global_ip_hourly_limit',Config::int('OTP_MAX_GLOBAL_IP_REQUESTS_PER_HOUR',50)));$this->allowGlobal('email:'.$emailHash,$this->settings->int('global_email_hourly_limit',Config::int('OTP_MAX_GLOBAL_EMAIL_REQUESTS_PER_HOUR',20)));
-        $this->allow($apiKeyId,'ip:'.$ip.':hour',Config::int('OTP_MAX_REQUESTS_PER_HOUR',10),3600);if($projectId)$this->allow($apiKeyId,'project:'.$projectId.':hour',Config::int('OTP_MAX_PROJECT_REQUESTS_PER_HOUR',100),3600);
+        $keyHourly=(int)($key['hourly_limit']??0);$requestLimit=$keyHourly>0?min($keyHourly,Config::int('OTP_MAX_REQUESTS_PER_HOUR',10)):Config::int('OTP_MAX_REQUESTS_PER_HOUR',10);
+        $this->allow($apiKeyId,'ip:'.$ip.':hour',$requestLimit,3600);if($projectId)$this->allow($apiKeyId,'project:'.$projectId.':hour',Config::int('OTP_MAX_PROJECT_REQUESTS_PER_HOUR',100),3600);
         if($action==='verify'){
             $otp=Validation::otp($data['otp']??null);$requestId=isset($data['request_id'])?Validation::requestId($data['request_id']):null;$this->allow($apiKeyId,'verify:'.$emailHash,Config::int('OTP_MAX_VERIFY_REQUESTS_PER_HOUR',20),3600,'verify_rate_limit_exceeded');$result=$this->otp->verify($email,$purpose,$otp,$apiKeyId,$requestId);
             if($result['verified'])Response::success(['verified'=>true,'request_id'=>$result['request_id']]);
