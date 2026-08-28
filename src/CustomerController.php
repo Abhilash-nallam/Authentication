@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
-
 namespace OtpAuth;
-
 final class CustomerController
 {
     public function __construct(private CustomerService $customers,private CustomerMailer $mailer,private ProjectService $projects,private DomainVerificationService $domains,private ApiKeyService $keys) {}
@@ -23,7 +21,7 @@ final class CustomerController
             if($action==='domain-verify'){$r=$this->domains->verify($customerId,(int)($data['project_id']??0));if(!$r['verified'])Response::error('domain_not_verified','DNS TXT record was not found.',400);Response::success($r);}
             if($action==='subdomain')Response::success($this->projects->setSubdomain($customerId,(int)($data['project_id']??0),(string)($data['subdomain']??'')));
             if($action==='widget-settings')Response::success($this->projects->widgetSettings($customerId,(int)($data['project_id']??0)));
-            if($action==='widget-origins'){$origins=$data['origins']??[];if(!is_array($origins))$origins=[$origins];Response::success($this->projects->setWidgetOrigins($customerId,(int)($data['project_id']??0,$origins));}
+            if($action==='widget-origins'){$origins=$data['origins']??[];if(!is_array($origins))$origins=[$origins];Response::success($this->projects->setWidgetOrigins($customerId,(int)($data['project_id']??0),$origins));}
             if($action==='senders')Response::success(['senders'=>$this->projects->senderIdentities($customerId,(int)($data['project_id']??0))]);
             if($action==='sender-create')Response::success(['sender'=>$this->projects->addSenderIdentity($customerId,(int)($data['project_id']??0),(string)($data['local_part']??''),(string)($data['display_name']??''))],201);
             if($action==='keys')Response::success(['keys'=>$this->keys->listForProject((int)($data['project_id']??0),$customerId)]);
