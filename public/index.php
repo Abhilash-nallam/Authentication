@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/bootstrap.php';
-use OtpAuth\AbuseLimiter;use OtpAuth\AdminController;use OtpAuth\AdminService;use OtpAuth\ApiController;use OtpAuth\ApiKeyService;use OtpAuth\Config;use OtpAuth\CustomerController;use OtpAuth\CustomerMailer;use OtpAuth\CustomerService;use OtpAuth\Database;use OtpAuth\DomainVerificationService;use OtpAuth\OtpService;use OtpAuth\ProjectService;use OtpAuth\RateLimiter;use OtpAuth\Response;use OtpAuth\SesEventController;use OtpAuth\SettingsService;
+use OtpAuth\AbuseLimiter;use OtpAuth\AdminController;use OtpAuth\AdminService;use OtpAuth\ApiController;use OtpAuth\ApiKeyService;use OtpAuth\Config;use OtpAuth\CustomerController;use OtpAuth\CustomerMailer;use OtpAuth\CustomerService;use OtpAuth\Database;use OtpAuth\DomainVerificationService;use OtpAuth\OtpService;use OtpAuth\ProjectService;use OtpAuth\RateLimiter;use OtpAuth\Response;use OtpAuth\SesEventController;use OtpAuth\SettingsService;use OtpAuth\WidgetController;
 $path=parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH);
 try{
  Config::assertProductionSafe();$db=Database::connection();$settings=new SettingsService($db);$abuse=new AbuseLimiter($db);
+ if(str_starts_with($path,'/api/v1/widget/')){if($_SERVER['REQUEST_METHOD']==='OPTIONS'){header('Access-Control-Allow-Origin: *');header('Access-Control-Allow-Headers: Content-Type');header('Access-Control-Allow-Methods: POST, OPTIONS');header('Access-Control-Max-Age: 600');http_response_code(204);exit;}(new WidgetController($db,new ApiKeyService($db),new RateLimiter($db),$abuse,$settings,new OtpService($db)))->handle(trim(substr($path,strlen('/api/v1/widget/')),'/'));}
  if(str_starts_with($path,'/api/v1/otp/'))(new ApiController(new ApiKeyService($db),new RateLimiter($db),$abuse,$settings,new OtpService($db)))->handle(trim(substr($path,strlen('/api/v1/otp/')),'/'));
  if(str_starts_with($path,'/api/v1/customer/'))(new CustomerController(new CustomerService($db,$abuse),new CustomerMailer(),new ProjectService($db),new DomainVerificationService($db),new ApiKeyService($db)))->handle(trim(substr($path,strlen('/api/v1/customer/')),'/'));
  if(str_starts_with($path,'/api/v1/admin/'))(new AdminController(new AdminService($db,$abuse),$settings))->handle(trim(substr($path,strlen('/api/v1/admin/')),'/'));
