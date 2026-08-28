@@ -13,18 +13,63 @@ final class ProjectService
     {
         $name=trim($name); if($name===''||strlen($name)>120) throw new \InvalidArgumentException('Project name is invalid.');
         $publicId=self::uuid();
-        $this->db->prepare('INSERT INTO projects (customer_id,public_id,name) VALUES (?,?,?)')->execute([$customerId,$publicId,$name]);
-        return ['id'=>(int)$this->db->lastInsertId(),'public_id'=>$publicId,'name'=>$name,'status'=>'draft'];
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare('INSERT INTO projects (customer_id,public_id,name) VALUES (?,?,?)')->execute([$customerId,$publicId,$name]);
+            $projectId=(int)$this->db->lastInsertId();
+            $this->db->prepare('INSERT INTO project_widget_settings (project_id,widget_enabled,test_enabled,production_enabled) VALUES (?,1,1,0)')->execute([$projectId]);
+            $widgetSecret=hash_hmac('sha256','widget:'.$publicId,Config::requireSecret('APP_KEY'),true);
+            $this->db->prepare("INSERT INTO api_keys (project_id,customer_id,name,key_prefix,key_hash,environment,status,allowed_endpoints) VALUES (?,?,?,?,?,'test','active','request,verify,resend')")
+                ->execute([$projectId,$customerId,'__widget__','widget_'.$projectId,hash('sha256',$widgetSecret)]);
+            $this->db->commit();
+            return ['id'=>$projectId,'public_id'=>$publicId,'name'=>$name,'status'=>'draft','widget_enabled'=>true];
+        } catch (\Throwable $e) { if($this->db->inTransaction())$this->db->rollBack(); throw $e; }
     }
 
     public function listForCustomer(int $customerId): array
     {
-        $s=$this->db->prepare('SELECT id,public_id,name,website_domain,status,otp_subdomain,created_at FROM projects WHERE customer_id=? ORDER BY created_at DESC');$s->execute([$customerId]);return $s->fetchAll();
+        $s=$this->db->prepare('SELECT p.id,p.public_id,p.name,p.website_domain,p.status,p.otp_subdomain,p.created_at,w.widget_enabled,w.test_enabled,w.production_enabled FROM projects p LEFT JOIN project_widget_settings w ON w.project_id=p.id WHERE p.customer_id=? ORDER BY p.created_at DESC');$s->execute([$customerId]);return $s->fetchAll();
     }
 
     public function findOwned(int $customerId,int $projectId): ?array
     {
         $s=$this->db->prepare('SELECT * FROM projects WHERE id=? AND customer_id=? LIMIT 1');$s->execute([$projectId,$customerId]);return $s->fetch()?:null;
+    }
+
+    public function setWidgetOrigins(int $customerId,int $projectId,array $origins): array
+    {
+        $project=$this->findOwned($customerId,$projectId);if(!$project)throw new \DomainException('Project not found.');
+        $clean=[];
+        foreach($origins as $origin){$origin=trim((string)$origin);if($origin==='')continue;$parts=parse_url($origin);if(!$parts||empty($parts['scheme'])||empty($parts['host'])||!in_array(strtolower($parts['scheme']),['http','https'],true)||isset($parts['path'])||isset($parts['query'])||isset($parts['fragment']))throw new \InvalidArgumentException('Each allowed origin must be a full HTTP/HTTPS origin without a path.');$clean[]=$parts['scheme'].'://'.strtolower($parts['host']).(isset($parts['port'])?':'.$parts['port']:'');}
+        $clean=array_values(array_unique($clean));if(count($clean)>20)throw new \InvalidArgumentException('Too many allowed origins.');
+        $this->db->prepare('INSERT INTO project_widget_settings(project_id,allowed_origins) VALUES(?,?) ON DUPLICATE KEY UPDATE allowed_origins=VALUES(allowed_origins)')->execute([$projectId,$clean?implode("\n",$clean):null]);
+        return ['project_id'=>$projectId,'allowed_origins'=>$clean];
+    }
+
+    public function widgetSettings(int $customerId,int $projectId): array
+    {
+        $project=$this->findOwned($customerId,$projectId);if(!$project)throw new \DomainException('Project not found.');
+        $s=$this->db->prepare('SELECT * FROM project_widget_settings WHERE project_id=?');$s->execute([$projectId]);$row=$s->fetch()?:['widget_enabled'=>1,'allowed_origins'=>null,'test_enabled'=>1,'production_enabled'=>0];
+        return ['project_id'=>$projectId,'public_id'=>$project['public_id'],'widget_enabled'=>(bool)$row['widget_enabled'],'allowed_origins'=>$this->lines((string)($row['allowed_origins']??'')),'test_enabled'=>(bool)$row['test_enabled'],'production_enabled'=>(bool)$row['production_enabled']];
+    }
+
+    public function senderIdentities(int $customerId,int $projectId): array
+    {
+        $project=$this->findOwned($customerId,$projectId);if(!$project)throw new \DomainException('Project not found.');
+        $s=$this->db->prepare('SELECT id,local_part,display_name,full_address,status,created_at FROM project_sender_identities WHERE project_id=? ORDER BY created_at');$s->execute([$projectId]);return $s->fetchAll();
+    }
+
+    public function addSenderIdentity(int $customerId,int $projectId,string $localPart,string $displayName=''): array
+    {
+        $project=$this->findOwned($customerId,$projectId);if(!$project)throw new \DomainException('Project not found.');
+        $localPart=strtolower(trim($localPart));if(!preg_match('/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/',$localPart)||strlen($localPart)>64)throw new \InvalidArgumentException('Invalid email local part.');
+        $reserved=['admin','administrator','root','postmaster','abuse','security','support','webmaster'];if(in_array($localPart,$reserved,true))throw new \DomainException('Reserved email address.');
+        if(empty($project['otp_subdomain']))throw new \DomainException('Create your OTP-Auth subdomain first.');
+        $platform=strtolower(trim((string)Config::env('PLATFORM_DOMAIN')));if($platform==='')throw new \RuntimeException('PLATFORM_DOMAIN is not configured.');
+        $address=$localPart.'@'.$project['otp_subdomain'].'.'.$platform;
+        try{$this->db->prepare('INSERT INTO project_sender_identities(project_id,local_part,display_name,full_address,status) VALUES(?,?,?,?,\'reserved\')')->execute([$projectId,$localPart,trim($displayName)!==''?trim($displayName):null,$address]);}
+        catch(\PDOException $e){if((string)$e->getCode()==='23000')throw new \DomainException('Email address already exists for this project.');throw $e;}
+        return ['id'=>(int)$this->db->lastInsertId(),'email'=>$address,'status'=>'reserved','note'=>'The address is allocated by OTP Auth. DNS/SES sender verification must be completed before production sending.'];
     }
 
     public function setSubdomain(int $customerId,int $projectId,string $slug): array
@@ -46,5 +91,6 @@ final class ProjectService
         return ['subdomain'=>$full,'status'=>'provisioning_required','platform_domain'=>$platform];
     }
 
+    private function lines(string $value):array{return array_values(array_filter(array_map('trim',preg_split('/\R/',$value)?:[]),static fn(string $v):bool=>$v!==''));}
     private static function uuid(): string{$d=random_bytes(16);$d[6]=chr((ord($d[6])&15)|64);$d[8]=chr((ord($d[8])&63)|128);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));}
 }
